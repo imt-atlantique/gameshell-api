@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Gameshell dashboard - {{ session.id }}</title>
+    <style>
+        body {
+            background-color: #000;
+            color: white;
+            font-family: 'Ubuntu Mono', 'Courier New', Courier, monospace;
+        }
+
+        ul {
+            list-style-type: none;
+            padding: 0;
+        }
+
+        li {
+            margin-bottom: 10px;
+        }
+
+        p {
+            margin: 5px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Session: {{ session.id }}</h1>
+    <p>Created At: {{ session.created_at.strftime('%B %d, %Y at %I:%M') }}</p>
+    <h3>Rooms</h3>
+    <table>
+        <tr></tr>
+
+    </table>
+    <ul>
+        {% for room in rooms %}
+            <li>
+                {{ room.name }} 
+                {% if room.last_update %}
+                    {% if (now - room.last_update).total_seconds() < 600 %}
+                        <span style="color: green;">●</span>
+                    {% else %}
+                        <span style="color: red;">●</span>
+                    {% endif %}
+                {% else %}
+                    <span style="color: red;">●</span>
+                {% endif %}
+                ({{ room.players }} players)
+            </li>
+        {% endfor %}
+    </ul>
+    <h3>Leader board</h3>
+    <table>
+        <tbody>
+        {% for room in rooms %}
+            {% if room.top_player %}
+            <tr>
+                <td>{{ room.name }} </td>
+                <td> 🥇 {{ room.top_player.name }} (mission {{ room.top_player.missions_passed }}/{{ NB_MISSIONS }})</td>
+                <td>
+                    [{% for i in range(room.top_player.missions_passed) %}█{% endfor %}{% for i in range(NB_MISSIONS-room.top_player.missions_passed) %}&nbsp;{% endfor %}]
+                </td>
+            </tr>
+            {% endif %}
+        {% endfor %}
+    </table>
+</body>
+</html>
