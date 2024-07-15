@@ -1,10 +1,13 @@
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import List, Dict
 from datetime import datetime
+
+from database import SessionLocal, Player as DBPlayer, Room as DBRoom, Session as DBSession
+from schemas import PlayerCreate, Player, RoomCreate, Room, SessionCreate, Session
 
 app = FastAPI()
 NB_MISSIONS = 43
@@ -21,6 +24,14 @@ app.add_middleware(
 # Set up Jinja2 templates
 templates = Jinja2Templates(directory="templates")
 
+# Dependency
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
 # Data models
 class Player(BaseModel):
     name: str
@@ -36,92 +47,95 @@ class Session(BaseModel):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     rooms: List[Room] = []
 
-# In-memory storage
-sessions: Dict[str, Session] = {}
-
 # Endpoints
 @app.post("/sessions", response_model=Session)
-def create_session(id: str):
-    if id in sessions:
-        raise HTTPException(status_code=400, detail="Session already exists")
-    session = Session(id=id)
-    sessions[id] = session
-    return session
+def create_session(session: SessionCreate, db: Session = Depends(get_db)):
+    db_session = DBSession(id=session.id)
+    db.add(db_session)
+    db.commit()
+    db.refresh(db_session)
+    return db_session
 
 @app.post("/sessions/{id}/rooms", response_model=Room)
-def add_room_to_session(id: str, room: Room):
-    if id not in sessions:
+def add_room_to_session(id: str, room: RoomCreate, db: Session = Depends(get_db)):
+    db_session = db.query(DBSession).filter(DBSession.id == id).first()
+    if not db_session:
         raise HTTPException(status_code=404, detail="Session not found")
-    session = sessions[id]
-    for r in session.rooms:
-        if r.name == room.name:
-            raise HTTPException(status_code=400, detail="Room with this name already exists in the session")
-    session.rooms.append(room)
-    return room
+    db_room = DBRoom(name=room.name, session_id=db_session.id)
+    db.add(db_room)
+    db.commit()
+    db.refresh(db_room)
+    return db_room
 
 @app.post("/sessions/{id}/rooms/{room_name}/players", response_model=Player)
-def add_player_to_room(id: str, room_name: str, player: Player):
-    if id not in sessions:
+def add_player_to_room(id: str, room_name: str, player: PlayerCreate, db: Session = Depends(get_db)):
+    db_session = db.query(DBSession).filter(DBSession.id == id).first()
+    if not db_session:
         raise HTTPException(status_code=404, detail="Session not found")
-    session = sessions[id]
-    for room in session.rooms:
-        if room.name == room_name:
-            player.updated_at = datetime.utcnow()
-            room.players.append(player)
-            return player
-    raise HTTPException(status_code=404, detail="Room not found")
+    db_room = db.query(DBRoom).filter(DBRoom.session_id == db_session.id, DBRoom.name == room_name).first()
+    if not db_room:
+        raise HTTPException(status_code=404, detail="Room not found")
+    db_player = DBPlayer(name=player.name, missions_passed=player.missions_passed, room_id=db_room.id)
+    db.add(db_player)
+    db.commit()
+    db.refresh(db_player)
+    return db_player
 
 @app.patch("/sessions/{id}/rooms/{room_name}/players/{player_name}", response_model=Player)
-def update_player(id: str, room_name: str, player_name: str, updated_player: Player):
-    if id not in sessions:
+def update_player(id: str, room_name: str, player_name: str, updated_player: PlayerCreate, db: Session = Depends(get_db)):
+    db_session = db.query(DBSession).filter(DBSession.id == id).first()
+    if not db_session:
         raise HTTPException(status_code=404, detail="Session not found")
-    session = sessions[id]
-    for room in session.rooms:
-        if room.name == room_name:
-            for player in room.players:
-                if player.name == player_name:
-                    player.name = updated_player.name
-                    player.missions_passed = updated_player.missions_passed
-                    player.updated_at = datetime.utcnow()
-                    return player
-    raise HTTPException(status_code=404, detail="Player not found")
+    db_room = db.query(DBRoom).filter(DBRoom.session_id == db_session.id, DBRoom.name == room_name).first()
+    if not db_room:
+        raise HTTPException(status_code=404, detail="Room not found")
+    db_player = db.query(DBPlayer).filter(DBPlayer.room_id == db_room.id, DBPlayer.name == player_name).first()
+    if not db_player:
+        raise HTTPException(status_code=404, detail="Player not found")
+    db_player.name = updated_player.name
+    db_player.missions_passed = updated_player.missions_passed
+    db_player.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(db_player)
+    return db_player
 
 @app.get("/sessions", response_model=List[Session])
-def list_sessions():
-    return list(sessions.values())
+def list_sessions(db: Session = Depends(get_db)):
+    return db.query(DBSession).all()
 
 @app.get("/sessions/{id}", response_model=Session)
-def get_session(id: str):
-    if id not in sessions:
+def get_session(id: str, db: Session = Depends(get_db)):
+    db_session = db.query(DBSession).filter(DBSession.id == id).first()
+    if not db_session:
         raise HTTPException(status_code=404, detail="Session not found")
-    return sessions[id]
+    return db_session
 
 @app.get("/sessions/{id}/rooms/{room_name}", response_model=Room)
-def get_room(id: str, room_name: str):
-    if id not in sessions:
+def get_room(id: str, room_name: str, db: Session = Depends(get_db)):
+    db_session = db.query(DBSession).filter(DBSession.id == id).first()
+    if not db_session:
         raise HTTPException(status_code=404, detail="Session not found")
-    session = sessions[id]
-    for room in session.rooms:
-        if room.name == room_name:
-            return room
-    raise HTTPException(status_code=404, detail="Room not found")
+    db_room = db.query(DBRoom).filter(DBRoom.session_id == db_session.id, DBRoom.name == room_name).first()
+    if not db_room:
+        raise HTTPException(status_code=404, detail="Room not found")
+    return db_room
 
 @app.get("/dashboard", response_class=HTMLResponse)
-def dashboard(request: Request, id: str):
-    if id not in sessions:
+def dashboard(request: Request, id: str, db: Session = Depends(get_db)):
+    db_session = db.query(DBSession).filter(DBSession.id == id).first()
+    if not db_session:
         raise HTTPException(status_code=404, detail="Session not found")
-    session = sessions[id]
     
     # Find the player with the latest updated_at field
     latest_player = None
-    for room in session.rooms:
+    for room in db_session.rooms:
         for player in room.players:
             if latest_player is None or player.updated_at > latest_player.updated_at:
                 latest_player = player
     
     now = datetime.utcnow()
     rooms = []
-    for room in session.rooms:
+    for room in db_session.rooms:
         top_player = None
         latest_player = None
         for player in room.players:
@@ -133,7 +147,7 @@ def dashboard(request: Request, id: str):
 
     return templates.TemplateResponse("dashboard.html", {
         "request": request,
-        "session": session,
+        "session": db_session,
         "rooms": rooms,
         "now": now,
         "NB_MISSIONS": NB_MISSIONS,

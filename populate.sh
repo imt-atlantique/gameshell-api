@@ -4,12 +4,9 @@
 BASE_URL="http://localhost:8000"
 
 # Create a session
-SESSION_ID="Back%20to%20school%202024-2025"
+SESSION_ID="rentree2024-2025"
 curl -X POST "$BASE_URL/sessions" -H "Content-Type: application/json" -d "{\"id\": \"$SESSION_ID\"}"
-curl -X 'POST' \
-  "$BASE_URL/sessions?id=$SESSION_ID" \
-  -H 'accept: application/json' \
-  -d ''
+
 # Add three rooms to the session
 ROOM_NAMES=("A00-117A" "B00-133A" "E00-201A")
 for ROOM_NAME in "${ROOM_NAMES[@]}"; do

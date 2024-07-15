@@ -55,7 +55,7 @@
             {% if room.top_player %}
             <tr>
                 <td>{{ room.name }} </td>
-                <td> 🥇 {{ room.top_player.name }} (mission {{ room.top_player.missions_passed }}/{{ NB_MISSIONS }})</td>
+                <td>&nbsp;{{ room.top_player.name }} (mission {{ room.top_player.missions_passed }}/{{ NB_MISSIONS }})</td>
                 <td>
                     [{% for i in range(room.top_player.missions_passed) %}█{% endfor %}{% for i in range(NB_MISSIONS-room.top_player.missions_passed) %}&nbsp;{% endfor %}]
                 </td>
