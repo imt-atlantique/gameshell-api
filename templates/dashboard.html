@@ -1,7 +1,8 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Gameshell dashboard - {{ session.id }}</title>
+    <title>Gameshell dashboard - {{ session.id|capitalize }}</title>
+    <meta http-equiv="refresh" content="10">
     <style>
         body {
             background-color: #000;
@@ -24,8 +25,8 @@
     </style>
 </head>
 <body>
-    <h1>Session: {{ session.id }}</h1>
-    <p>Created At: {{ session.created_at.strftime('%B %d, %Y at %I:%M') }}</p>
+    <h1>Session: {{ session.id|capitalize }}</h1>
+    <p>Created At: {{ session.created_at.strftime('%B %d, %Y at %I:%M %p') }}</p>
     <h3>Rooms</h3>
     <table>
         <tr></tr>
