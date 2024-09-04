@@ -153,6 +153,15 @@ def dashboard(request: Request, id: str, db: Session = Depends(get_db)):
         "NB_MISSIONS": NB_MISSIONS,
     })
 
+@app.get("/", response_class=HTMLResponse)
+def home(request: Request):
+    return templates.TemplateResponse("home.html", {"request": request})
+
+@app.get("/imt", response_class=HTMLResponse)
+def imt(request: Request):
+    return templates.TemplateResponse("imt.html", {"request": request})
+
+
 # Run the app
 if __name__ == "__main__":
     import uvicorn
